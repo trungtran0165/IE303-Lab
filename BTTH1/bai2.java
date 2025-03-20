@@ -1,5 +1,3 @@
-package BTTH1;
-
 import java.util.Random;
 
 public class bai2 {
@@ -10,7 +8,7 @@ public class bai2 {
 
         Random random = new Random();
 
-        System.out.println("Đang xấp xỉ π sử dụng phương pháp Monte Carlo với " + totalPoints + " điểm...");
+        System.out.println("Dang tinh gia tri cua xap xi cua pi " + totalPoints + " diem...");
 
         // Sử dụng phương pháp Monte Carlo
         for (int i = 0; i < totalPoints; i++) {
@@ -27,8 +25,8 @@ public class bai2 {
         // Tính xấp xỉ π
         double piApproximation = 4.0 * pointsInsideCircle / totalPoints;
 
-        System.out.println("Giá trị xấp xỉ của π: " + piApproximation);
-        System.out.println("Giá trị thực của π:    " + Math.PI);
-        System.out.println("Sai số: " + Math.abs(piApproximation - Math.PI));
+        System.out.println("Gia tri xap xi cua pi " + piApproximation);
+        System.out.println("Gia tri thuc cua pi:    " + Math.PI);
+        System.out.println("Sai so: " + Math.abs(piApproximation - Math.PI));
     }
 }

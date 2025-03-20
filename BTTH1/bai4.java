@@ -1,156 +1,192 @@
-package BTTH1;
-
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.*;
+import java.io.*;
 
 public class bai4 {
-    private Map<String, Integer> wordCount; // Đếm số lần xuất hiện của từng từ
-    private Map<String, Map<String, Integer>> bigramCount; // Đếm số lần xuất hiện của từng cặp từ
-    private Set<String> vocabulary; // Tập từ vựng (xuất hiện ít nhất 5 lần)
-    private int totalWords; // Tổng số từ
-    private int totalBigrams; // Tổng số cặp từ
-    
-    public bai4() {
-        wordCount = new HashMap<>();
-        bigramCount = new HashMap<>();
-        vocabulary = new HashSet<>();
-        totalWords = 0;
-        totalBigrams = 0;
-    }
-    
-    // Phương thức đọc và xử lý dữ liệu từ tập UIT-ViOCD
-    public void processCorpus(String filePath) {
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            String previousWord = null;
-            
-            while ((line = reader.readLine()) != null) {
-                // Tách câu thành các từ
-                String[] words = line.trim().split("\\s+");
-                
+
+    public static Map<String, Integer> vocab = new HashMap<String, Integer>();
+    public static Map<String, Integer> corpus = new HashMap<String, Integer>();
+    public static Map<String, Integer> pairCorpus = new HashMap<String, Integer>();
+    public static Double[] probs;
+    public static Double[][] conditionalProbs;
+
+    public static void readFile() {
+        try {
+            Vector<String> lines = new Vector<String>();
+            File file = new File("UIT-ViOCD.txt");
+            Scanner fileScanner = new Scanner(file);
+
+            while (fileScanner.hasNextLine()) {
+                String line = fileScanner.nextLine();
+                lines.addElement(line);
+            }
+            fileScanner.close();
+
+            for (String line : lines) {
+                // remove line break \n, \r and tab \t
+                line = line.replace("\n", "").replace("\r", "").replace("\t", "");
+                // remove all leading spaces
+                line = line.replaceAll("^\\s+", "");
+                // remove all ending spaces
+                line = line.replaceAll("\\s+$", "");
+                // lowering
+                line = line.toLowerCase();
+
+                // collecting words
+                int wordId = 0;
+                String[] words = line.split("\\s+");
                 for (String word : words) {
-                    // Bỏ qua từ rỗng
-                    if (word.isEmpty()) continue;
-                    
-                    // Cập nhật số lần xuất hiện của từ
-                    wordCount.put(word, wordCount.getOrDefault(word, 0) + 1);
-                    totalWords++;
-                    
-                    // Cập nhật số lần xuất hiện của cặp từ
-                    if (previousWord != null) {
-                        if (!bigramCount.containsKey(previousWord)) {
-                            bigramCount.put(previousWord, new HashMap<>());
-                        }
-                        Map<String, Integer> nextWords = bigramCount.get(previousWord);
-                        nextWords.put(word, nextWords.getOrDefault(word, 0) + 1);
-                        totalBigrams++;
+                    if (corpus.containsKey(word)) {
+                        corpus.put(word, corpus.get(word) + 1);
+                    } else {
+                        vocab.put(word, wordId);
+                        corpus.put(word, 1);
+                        wordId += 1;
                     }
-                    
-                    previousWord = word;
                 }
-                
-                // Reset previousWord ở cuối mỗi câu
-                previousWord = null;
-            }
-            
-            // Xây dựng từ điển chỉ với từ xuất hiện ít nhất 5 lần
-            for (Map.Entry<String, Integer> entry : wordCount.entrySet()) {
-                if (entry.getValue() >= 5) {
-                    vocabulary.add(entry.getKey());
+
+                // collecting pairs of words
+                for (int i = 0; i < words.length - 1; i++) {
+                    String words_ij = words[i] + "_" + words[i + 1];
+                    if (pairCorpus.containsKey(words_ij)) {
+                        pairCorpus.put(words_ij, pairCorpus.get(words_ij) + 1);
+                    } else {
+                        pairCorpus.put(words_ij, 1);
+                    }
                 }
             }
-            
-            System.out.println("Đã xử lý xong corpus với " + vocabulary.size() + " từ trong từ điển.");
-            
-        } catch (IOException e) {
-            System.err.println("Lỗi khi đọc tập dữ liệu: " + e.getMessage());
+        } catch (FileNotFoundException fileNotFoundException) {
+            System.out.println("File not found!");
+            fileNotFoundException.printStackTrace();
         }
     }
-    
-    // Tính xác suất P(word)
-    private double wordProbability(String word) {
-        if (!vocabulary.contains(word)) return 0.0;
-        return (double) wordCount.getOrDefault(word, 0) / totalWords;
-    }
-    
-    // Tính xác suất P(word1, word2) - xác suất đồng thời
-    private double jointProbability(String word1, String word2) {
-        if (!vocabulary.contains(word1) || !vocabulary.contains(word2)) return 0.0;
-        
-        Map<String, Integer> nextWords = bigramCount.getOrDefault(word1, Collections.emptyMap());
-        int count = nextWords.getOrDefault(word2, 0);
-        
-        return (double) count / totalBigrams;
-    }
-    
-    // Tính xác suất có điều kiện P(word2|word1)
-    private double conditionalProbability(String word2, String word1) {
-        double pw1 = wordProbability(word1);
-        if (pw1 == 0) return 0.0;
-        
-        double jointP = jointProbability(word1, word2);
-        return jointP / pw1;
-    }
-    
-    // Sinh ra câu với tối đa 5 từ
-    public List<String> generateSentence(String startWord) {
-        List<String> sentence = new ArrayList<>();
-        sentence.add(startWord);
-        
-        String currentWord = startWord;
-        
-        // Sinh thêm tối đa 4 từ nữa
-        for (int i = 0; i < 4; i++) {
-            String nextWord = findBestNextWord(currentWord);
-            if (nextWord == null) break; // Không tìm thấy từ tiếp theo phù hợp
-            
-            sentence.add(nextWord);
-            currentWord = nextWord;
+
+    public static void constructSingleProb() {
+        // determine the total number of words in the dataset
+        int totalWords = 0;
+        for (Map.Entry<String, Integer> item : corpus.entrySet()) {
+            totalWords += item.getValue();
         }
-        
-        return sentence;
+
+        // calculating the probability of each word
+        probs = new Double[vocab.size()];
+        for (Map.Entry<String, Integer> item : corpus.entrySet()) {
+            String word = item.getKey();
+            Integer wordCount = corpus.get(word);
+            Integer wordId = vocab.get(word);
+
+            // Bước 2: Xác định P(w) ≈ #w / tổng số từ
+            probs[wordId] = (double) wordCount / totalWords;
+        }
     }
-    
-    // Tìm từ tiếp theo tốt nhất dựa vào xác suất có điều kiện
-    private String findBestNextWord(String currentWord) {
-        String bestWord = null;
-        double highestProb = 0.0;
-        
-        Map<String, Integer> nextWordsCount = bigramCount.getOrDefault(currentWord, Collections.emptyMap());
-        
-        for (String candidate : nextWordsCount.keySet()) {
-            if (!vocabulary.contains(candidate)) continue;
-            
-            double prob = conditionalProbability(candidate, currentWord);
-            if (prob > highestProb) {
-                highestProb = prob;
-                bestWord = candidate;
+
+    public static void constructConditionalProb() {
+        // determine the total number of words in the dataset
+        int totalPairsOfWords = 0;
+        for (Map.Entry<String, Integer> item : pairCorpus.entrySet()) {
+            totalPairsOfWords += item.getValue();
+        }
+
+        // calculating the probability of each pair of words
+        Double[][] jointProbs = new Double[vocab.size()][vocab.size()];
+        for (Map.Entry<String, Integer> item_i : corpus.entrySet())
+            for (Map.Entry<String, Integer> item_j : corpus.entrySet()) {
+                // get the information of word i
+                String word_i = item_i.getKey();
+                Integer wordId_i = vocab.get(word_i);
+
+                // get the information of word j
+                String word_j = item_j.getKey();
+                Integer wordId_j = vocab.get(word_j);
+
+                if (word_i == word_j) {
+                    jointProbs[wordId_i][wordId_j] = 1e-20;
+                    continue;
+                }
+
+                String wordKey_ij = word_i + "_" + word_j;
+                if (pairCorpus.containsKey(wordKey_ij)) {
+                    Integer wordCount_ij = pairCorpus.get(wordKey_ij);
+                    jointProbs[wordId_i][wordId_j] = ((double) wordCount_ij / totalPairsOfWords);
+                } else {
+                    jointProbs[wordId_i][wordId_j] = 1e-20;
+                }
+
+                String wordKey_ji = word_j + "_" + word_i;
+                if (pairCorpus.containsKey(wordKey_ji)) {
+                    Integer wordCount_ji = pairCorpus.get(wordKey_ji);
+                    jointProbs[wordId_j][wordId_i] = ((double) wordCount_ji / totalPairsOfWords);
+                } else {
+                    jointProbs[wordId_j][wordId_i] = 1e-20;
+                }
             }
-        }
-        
-        return bestWord;
+
+        // calculating the conditional probability of each pair of words
+        conditionalProbs = new Double[vocab.size()][vocab.size()];
+        for (Map.Entry<String, Integer> item_i : corpus.entrySet())
+            for (Map.Entry<String, Integer> item_j : corpus.entrySet()) {
+                // get the information of word i
+                String word_i = item_i.getKey();
+                Integer wordId_i = vocab.get(word_i);
+
+                // get the information of word j
+                String word_j = item_j.getKey();
+                Integer wordId_j = vocab.get(word_j);
+
+                // Bước 4: Xác định P(w_i | w_j) = P(w_i, w_j) / P(w_j)
+                conditionalProbs[wordId_i][wordId_j] = jointProbs[wordId_i][wordId_j] / probs[wordId_j];
+
+                // Xác định P(w_j | w_i) = P(w_j, w_i) / P(w_i)
+                conditionalProbs[wordId_j][wordId_i] = jointProbs[wordId_j][wordId_i] / probs[wordId_i];
+            }
     }
-    
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        bai4 model = new bai4();
-        
-        // Sử dụng đường dẫn cố định đến tập dữ liệu UIT-ViOCD
-        String datasetPath = "D:\\Uni\\HK2 Năm 3\\Java\\BTTH1\\UIT-ViOCD.txt";
-        
-        System.out.println("Đang xử lý tập dữ liệu...");
-        model.processCorpus(datasetPath);
-        
-        System.out.print("Nhập từ bắt đầu: ");
-        String startWord = scanner.nextLine();
-        
-        List<String> generatedSentence = model.generateSentence(startWord);
-        
-        System.out.println("\nCâu được sinh ra:");
-        System.out.println(String.join(" ", generatedSentence));
-        
-        scanner.close();
+
+    public static void training() {
+        constructSingleProb();
+        constructConditionalProb();
+    }
+
+    public static Vector<String> inferring(String w0) {
+        Vector<String> words = new Vector<String>();
+        words.add(w0);
+
+        // Kiểm tra từ có tồn tại trong từ điển không
+        Integer w0Idx = vocab.get(w0);
+        if (w0Idx == null) {
+            System.out.println("Error: Từ '" + w0 + "' không tồn tại trong từ điển!");
+            // Lấy một từ ngẫu nhiên từ từ điển
+            w0 = vocab.keySet().iterator().next();
+            w0Idx = vocab.get(w0);
+            System.out.println("Sử dụng từ thay thế: " + w0);
+            words.set(0, w0);
+        }
+
+        Double logProbs = -Math.log(probs[w0Idx]);
+        for (int t = 1; t <= 5; t++) {
+            // determine the word that gives the highest probability P(w0, w1, ..., wt)
+            String maxWord = new String();
+            Double maxLogProb = 0.0;
+            Integer w1Idx = new Integer(0);
+            for (Map.Entry<String, Integer> item : vocab.entrySet()) {
+                w1Idx = item.getValue();
+                Double prob = conditionalProbs[w0Idx][w1Idx];
+                if ((-Math.log(prob)) < maxLogProb || maxLogProb == 0.0) {
+                    maxWord = item.getKey();
+                    maxLogProb = -Math.log(prob);
+                }
+            }
+            logProbs += maxLogProb;
+            words.add(maxWord);
+            w0Idx = w1Idx;
+        }
+
+        return words;
+    }
+
+    public static void main(String[] args) throws Exception {
+        readFile();
+        training();
+        Vector<String> predicted_words = inferring("áo");
+        String sentence = String.join(" ", predicted_words);
+        System.out.println(sentence);
     }
 }
